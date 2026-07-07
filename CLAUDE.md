@@ -63,6 +63,12 @@
 - AI 에이전트 문서에 Vision, Embedding, OCR, STT, TTS, Agent, Memory 역할을 반영했다.
 - PM 워크플로우에 요구사항 분석부터 배포 승인까지의 흐름을 반영했다.
 - UX 및 Frontend, Backend 문서에 각각의 담당 범위를 확장했다.
+- **AI Company Simulator MVP를 구현했다** (Next.js App Router + TypeScript + TailwindCSS + Framer Motion + Zustand).
+  - 등각(2:1 투영) 오피스 뷰에 10개 Agent(CEO/PM/Research/Design/Frontend/Backend/AI/QA/DevOps/Documentation) 자리를 배치했다.
+  - 순수 프론트엔드 tick 기반 시뮬레이션 엔진(`src/lib/simulation/`)이 Agent 상태 전이(Idle/Thinking/Working/Review/Meeting/Debugging/Testing/Deploying/Completed/Error), Activity Feed, Terminal 로그, 부문별(Frontend/Backend/Design/QA/Deploy) 진행률을 자동 생성한다. 주기적으로 전체 Agent가 중앙 회의실에 모이는 Meeting 이벤트도 포함한다.
+  - Agent 클릭 시 프로필 패널(현재 작업/진행률/Last Commit/CPU/최근 로그)을 표시하고, 오피스 확대·축소·드래그 이동과 다크모드 토글을 지원한다.
+  - Socket.io 실시간 백엔드, PixiJS/Phaser 렌더링, 멀티 프로젝트(Room), 캘린더, 칸반보드, 실제 Git 연동, 에이전트 간 메시지 애니메이션은 다음 스프린트로 이연했다 (계획 문서 기준).
+  - `npm run build` 통과 및 Playwright로 브라우저 동작(시뮬레이션 시작, 상태 전이, 프로필 패널, 확대/축소, 다크모드)을 검증했다.
 
 ## 커밋 및 푸시 절차
 사용자가 커밋과 푸시를 요청하면, 다음 순서로 처리한다.
