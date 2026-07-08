@@ -26,14 +26,52 @@
 - CEO: 목표 설정, 우선순위 결정, 최종 승인
 - PM: 요구사항 분석, 업무 분해, 담당자 지정, 회의 운영, QA 요청, 배포 승인
 - Research: 조사, 경쟁 분석, API/정책 검토
+- Architect: 프로젝트 구조, 폴더/모듈 분리, DB/API 설계 방향, 아키텍처 패턴 선정
 - UXDesigner: Wireframe, User Flow, Figma, 색상, 접근성
+- Design: UX/UI 설계, 디자인 시스템, 컴포넌트 구조 정의
 - Frontend: React, Next.js, Flutter 기반 UI 구현
 - Backend: API, DB, Auth, Redis, Queue 처리
 - AI: Prompt, RAG, Embedding, LLM, Vision, OCR, STT, TTS, Agent, Memory
+- Data: JSON/CSV 전처리, ETL, Feature 엔지니어링, DB 적재, 데이터 검증
 - QA: 테스트, 버그 분석, 품질 검증
 - Security: 보안 정책, 취약점 점검
 - DevOps: 배포, CI/CD, 운영 관리
 - Documentation: 문서 및 변경 이력 관리
+
+## 협업 워크플로우
+전체 작업은 다음 순서로 에이전트 간에 전달된다. Backend, Frontend, AI, Data는 Design 산출물을 기준으로 병렬로 진행하며, 모두 QA 단계로 합류한다.
+
+```
+CEO
+  ↓
+PM
+  ↓
+Research
+  ↓
+Architect
+  ↓
+UXDesigner
+  ↓
+Design
+  ↓
+Backend + Frontend + AI + Data (병렬)
+  ↓
+QA
+  ↓
+Security
+  ↓
+DevOps
+  ↓
+Documentation
+```
+
+- 각 단계는 이전 단계의 산출물(문서/설계/구현)을 입력으로 받아 진행한다.
+- Backend/Frontend/AI/Data 병렬 구간에서는 서로의 담당 범위를 침범하지 않고, Design 단계에서 정의된 명세를 공통 기준으로 삼는다.
+- QA는 병렬 구간의 모든 산출물이 도착한 뒤 통합 검증을 수행한다.
+- Security는 QA 통과 이후 취약점 점검을 수행하며, 문제가 발견되면 해당 담당 에이전트로 회귀한다.
+- DevOps 배포 이후 Documentation이 변경 이력과 문서를 최종 정리한다.
+- 각 에이전트 문서(AGENTS/*.md)의 "협업 흐름에서의 위치" 항목에 자신의 앞/뒤 단계가 명시되어 있다.
+- Backend/Frontend/AI/Data 병렬 구간을 실제로 실행하는 방법(서브에이전트 병렬 호출, 수동 터미널 분리 시 참고사항)은 RULES/workflow.md의 "병렬 구간 실행 방법"을 따른다.
 
 ## 규칙 및 워크플로우
 - PM의 기본 흐름은 다음과 같다: 요구사항 분석 → 업무 분해 → 담당자 지정 → 회의 개최 → QA 요청 → 배포 승인
@@ -69,6 +107,9 @@
   - Agent 클릭 시 프로필 패널(현재 작업/진행률/Last Commit/CPU/최근 로그)을 표시하고, 오피스 확대·축소·드래그 이동과 다크모드 토글을 지원한다.
   - Socket.io 실시간 백엔드, PixiJS/Phaser 렌더링, 멀티 프로젝트(Room), 캘린더, 칸반보드, 실제 Git 연동, 에이전트 간 메시지 애니메이션은 다음 스프린트로 이연했다 (계획 문서 기준).
   - `npm run build` 통과 및 Playwright로 브라우저 동작(시뮬레이션 시작, 상태 전이, 프로필 패널, 확대/축소, 다크모드)을 검증했다.
+- Architect, Data 에이전트 문서를 추가하고 기존 에이전트 문서와 동일한 포맷(역할/담당 업무/System Prompt/사용법)으로 정리했다.
+- CLAUDE.md에 CEO → PM → Research → Architect → UXDesigner → Design → (Backend+Frontend+AI+Data 병렬) → QA → Security → DevOps → Documentation 협업 워크플로우를 반영했다.
+- 각 AGENTS/*.md 파일에 "협업 흐름에서의 위치" 항목을 추가해 앞/뒤 단계를 명시했다.
 
 ## 커밋 및 푸시 절차
 사용자가 커밋과 푸시를 요청하면, 다음 순서로 처리한다.
