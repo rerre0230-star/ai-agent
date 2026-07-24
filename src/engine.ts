@@ -29,12 +29,114 @@ function parseHospitalName(text: string): string | null {
   return match ? match[1] : null
 }
 
+const GREETING_RE = /^안녕/
+const TIME_QUERY_RE = /몇\s*시/
+const DATE_QUERY_RE = /며칠|무슨\s*요일/
+const SCHEDULE_TRIGGER_RE = /잡아줘|잡아|예약해줘|예약|등록해줘|등록|일정|스케줄/
+const SEARCH_RE = /(.+?)\s*(검색해줘|검색|찾아줘|알려줘)$/
+
 function parseIntent(text: string): IntentType {
-  // '예약'은 병원·두리발 모두에 쓰이는 단어라 두리발 등 이동 키워드를 먼저 검사한다
+  if (GREETING_RE.test(text)) return 'greeting'
+  // '예약'은 병원·두리발·범용 일정에 모두 쓰이는 단어라 구체적인 키워드부터 먼저 검사한다
   if (/두리발|콜택시|택시|이동|차\s*불러|기사님|픽업/.test(text)) return 'transport'
-  if (/병원|진료|예약/.test(text)) return 'hospital'
+  if (/병원|진료/.test(text)) return 'hospital'
   if (/약.*(확인|먹|드셨)/.test(text)) return 'medication'
+  if (TIME_QUERY_RE.test(text)) return 'time'
+  if (DATE_QUERY_RE.test(text)) return 'date'
+  if (SCHEDULE_TRIGGER_RE.test(text)) return 'schedule'
+  if (SEARCH_RE.test(text)) return 'search'
   return 'unknown'
+}
+
+// ---- 범용 일정 등록: '내일 오후 3시에 치과 예약 잡아줘' → 제목/일시 파싱 ----
+const RELATIVE_DAY_OFFSET: Record<string, number> = { 모레: 2, 내일: 1, 오늘: 0 }
+const MONTH_DAY_RE = /(\d{1,2})\s*월\s*(\d{1,2})\s*일/
+const MERIDIEM_RE = /오전|오후/
+const HOUR_MIN_RE = /(\d{1,2})\s*시\s*(?:(\d{1,2})\s*분)?/
+const SCHEDULE_TRIGGER_RE_G = /잡아줘|잡아|예약해줘|예약|등록해줘|등록|일정|스케줄/g
+const WEEKDAYS_KO = ['월', '화', '수', '목', '금', '토', '일']
+const DEFAULT_SCHEDULE_HOUR = 9
+
+function parseScheduleRequest(text: string): { title: string; when: Date; timeSpecified: boolean } {
+  let remaining = text
+
+  let dayOffset: number | null = null
+  for (const [word, offset] of Object.entries(RELATIVE_DAY_OFFSET)) {
+    if (remaining.includes(word)) {
+      dayOffset = offset
+      remaining = remaining.replace(word, ' ')
+      break
+    }
+  }
+
+  let explicitDate: Date | null = null
+  const mdMatch = MONTH_DAY_RE.exec(remaining)
+  if (mdMatch) {
+    const month = parseInt(mdMatch[1], 10)
+    const day = parseInt(mdMatch[2], 10)
+    remaining = remaining.slice(0, mdMatch.index) + ' ' + remaining.slice(mdMatch.index + mdMatch[0].length)
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+    let candidate = new Date(today.getFullYear(), month - 1, day)
+    if (candidate < today) candidate = new Date(today.getFullYear() + 1, month - 1, day)
+    explicitDate = candidate
+  }
+
+  let meridiem: string | null = null
+  const merMatch = MERIDIEM_RE.exec(remaining)
+  if (merMatch) {
+    meridiem = merMatch[0]
+    remaining = remaining.slice(0, merMatch.index) + ' ' + remaining.slice(merMatch.index + merMatch[0].length)
+  }
+
+  let hour: number | null = null
+  let minute = 0
+  let timeSpecified = false
+  const hmMatch = HOUR_MIN_RE.exec(remaining)
+  if (hmMatch) {
+    hour = parseInt(hmMatch[1], 10)
+    minute = hmMatch[2] ? parseInt(hmMatch[2], 10) : 0
+    timeSpecified = true
+    remaining = remaining.slice(0, hmMatch.index) + ' ' + remaining.slice(hmMatch.index + hmMatch[0].length)
+  }
+
+  let targetDate: Date
+  if (explicitDate) {
+    targetDate = explicitDate
+  } else {
+    targetDate = new Date()
+    targetDate.setHours(0, 0, 0, 0)
+    targetDate.setDate(targetDate.getDate() + (dayOffset ?? 0))
+  }
+
+  if (hour === null) hour = DEFAULT_SCHEDULE_HOUR
+  if (meridiem === '오후' && hour !== 12) hour += 12
+  else if (meridiem === '오전' && hour === 12) hour = 0
+  hour = hour % 24
+
+  const when = new Date(targetDate)
+  when.setHours(hour, minute, 0, 0)
+
+  // 트리거 단어(잡아줘/예약/등록 등)는 부분 문자열로 제거
+  remaining = remaining.replace(SCHEDULE_TRIGGER_RE_G, ' ')
+  // 조사(에/을/를)는 완전히 분리된 토큰일 때만 제거 — 한글은 JS \b로 단어경계를 잡을 수 없어 토큰 단위로 거른다
+  const PARTICLES = new Set(['에', '을', '를'])
+  const title = remaining
+    .split(/\s+/)
+    .filter((tok) => tok && !PARTICLES.has(tok))
+    .join(' ')
+    .trim() || '일정'
+
+  return { title, when, timeSpecified }
+}
+
+function formatScheduleWhenLabel(when: Date): string {
+  const weekday = WEEKDAYS_KO[(when.getDay() + 6) % 7]
+  const hour12 = when.getHours() % 12 || 12
+  const meridiem = when.getHours() < 12 ? '오전' : '오후'
+  let label = `${when.getMonth() + 1}월 ${when.getDate()}일(${weekday}) ${meridiem} ${hour12}시`
+  if (when.getMinutes()) label += ` ${when.getMinutes()}분`
+  return label
 }
 
 const isYes = (t: string) => /(네|응|좋아|연결해|맞아|그래)/.test(t)
@@ -189,16 +291,69 @@ export function useConversationEngine(onSystemSpeak: (text: string) => void) {
     }, DEMO_TIMEOUT_MS)
   }, [addAlert, addEvent, addMessage, pushToast])
 
+  const handleGreeting = useCallback(() => {
+    addMessage(
+      'system',
+      '안녕하세요! 병원 예약, 두리발 호출, 복약 확인은 물론 일정 등록·검색·시간·날짜 안내도 도와드려요. ' +
+        "예를 들어 '내일 오후 3시에 치과 예약 잡아줘'라고 말해보세요.",
+    )
+  }, [addMessage])
+
+  const handleTimeQuery = useCallback(() => {
+    const now = new Date()
+    const hour12 = now.getHours() % 12 || 12
+    const meridiem = now.getHours() < 12 ? '오전' : '오후'
+    addMessage('system', `지금은 ${meridiem} ${hour12}시 ${now.getMinutes()}분이에요.`)
+  }, [addMessage])
+
+  const handleDateQuery = useCallback(() => {
+    const now = new Date()
+    const weekday = WEEKDAYS_KO[(now.getDay() + 6) % 7]
+    addMessage('system', `오늘은 ${now.getMonth() + 1}월 ${now.getDate()}일 ${weekday}요일이에요.`)
+  }, [addMessage])
+
+  const handleSearchQuery = useCallback((query: string) => {
+    if (!query) {
+      addMessage('system', '무엇을 검색할지 말씀해주세요.')
+      return
+    }
+    const url = `https://www.google.com/search?q=${encodeURIComponent(query)}`
+    const opened = window.open(url, '_blank', 'noopener,noreferrer')
+    if (opened) {
+      addMessage('system', `🔍 ${query} 검색 결과를 새 창에서 열었어요.`)
+    } else {
+      addMessage('system', `브라우저 팝업이 차단된 것 같아요. 이 주소로 직접 검색해주세요: ${url}`)
+    }
+  }, [addMessage])
+
+  const handleSchedule = useCallback((text: string) => {
+    const { title, when, timeSpecified } = parseScheduleRequest(text)
+    const whenLabel = formatScheduleWhenLabel(when)
+    setState({ kind: 'confirmed', title: '일정을 등록했어요', lines: [title, whenLabel], guardianNotified: false })
+    let msg = `✅ ${whenLabel}, ${title} 일정을 등록했어요.`
+    if (!timeSpecified) msg += ' 시간을 말씀하지 않으셔서 오전 9시로 등록했어요.'
+    addMessage('system', msg)
+    addEvent({ type: 'schedule', title, whenLabel, status: 'scheduled' })
+    pushToast('일정을 등록했어요')
+  }, [addEvent, addMessage, pushToast])
+
   const processIdleIntent = useCallback((text: string) => {
     const intent = parseIntent(text)
     if (intent === 'hospital') routeHospitalIntent(parseHospitalName(text))
     else if (intent === 'transport') startExternalConnect('transport', null, '두리발 호출해드릴게요')
     else if (intent === 'medication') startMedicationDemo()
-    else {
+    else if (intent === 'greeting') handleGreeting()
+    else if (intent === 'time') handleTimeQuery()
+    else if (intent === 'date') handleDateQuery()
+    else if (intent === 'schedule') handleSchedule(text)
+    else if (intent === 'search') {
+      const m = SEARCH_RE.exec(text)
+      handleSearchQuery(m ? m[1].trim() : '')
+    } else {
       setState({ kind: 'intent_confirm', intent: 'unknown', prompt: '무엇을 도와드릴까요?', options: ['병원 예약', '두리발 호출', '오늘 복약 확인'], retried: false })
       addMessage('system', '무엇을 도와드릴까요? 병원 예약, 두리발 호출, 복약 확인 중에 골라주세요.')
     }
-  }, [addMessage, routeHospitalIntent, startExternalConnect, startMedicationDemo])
+  }, [addMessage, handleDateQuery, handleGreeting, handleSchedule, handleSearchQuery, handleTimeQuery, routeHospitalIntent, startExternalConnect, startMedicationDemo])
 
   const handleAction = useCallback((raw: string) => {
     const text = raw.trim()
@@ -230,10 +385,9 @@ export function useConversationEngine(onSystemSpeak: (text: string) => void) {
             return
           }
         }
-        if (s.intent === 'unknown') {
-          if (text.includes('병원')) return routeHospitalIntent(parseHospitalName(text))
-          if (text.includes('두리발') || text.includes('이동')) return startExternalConnect('transport', null, '두리발 호출해드릴게요')
-          if (text.includes('복약') || text.includes('약')) return startMedicationDemo()
+        if (s.intent === 'unknown' && parseIntent(text) !== 'unknown') {
+          processIdleIntent(text)
+          return
         }
         // 인텐트를 이해하지 못함 → 재질문 상한(1회) 적용
         if (!s.retried) {

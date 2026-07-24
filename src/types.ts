@@ -1,4 +1,4 @@
-export type IntentType = 'hospital' | 'transport' | 'medication' | 'unknown'
+export type IntentType = 'hospital' | 'transport' | 'medication' | 'schedule' | 'search' | 'time' | 'date' | 'greeting' | 'unknown'
 
 export type Sender = 'system' | 'user' | 'guardian-log'
 
@@ -45,7 +45,7 @@ export interface RegisteredHospital {
   phone: string
 }
 
-export type CalendarEventType = 'hospital' | 'transport' | 'medication'
+export type CalendarEventType = 'hospital' | 'transport' | 'medication' | 'schedule'
 export type CalendarEventStatus = 'scheduled' | 'done' | 'missed' | 'skipped' | 'stopped'
 
 export interface CalendarEvent {

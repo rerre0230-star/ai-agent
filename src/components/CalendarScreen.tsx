@@ -4,6 +4,7 @@ const typeIcon: Record<CalendarEventType, string> = {
   hospital: '🏥',
   transport: '🚐',
   medication: '💊',
+  schedule: '🗓️',
 }
 
 const statusLabel: Record<CalendarEventStatus, string> = {
