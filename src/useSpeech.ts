@@ -21,12 +21,31 @@ interface SpeechRecognitionLike extends EventTarget {
   onerror: ((e: SpeechRecognitionErrorEventLike) => void) | null
 }
 
-function micErrorMessage(error: string): string {
+async function describePermissionBlocked(): Promise<string> {
+  // 브라우저 자체 권한은 허용됐는데도 not-allowed가 뜨는 대표 원인은
+  // 아티팩트 미리보기처럼 마이크 권한이 위임되지 않은 iframe 안에서 실행 중인 경우다.
+  try {
+    const nav = navigator as Navigator & { permissions?: { query: (opts: { name: string }) => Promise<{ state: string }> } }
+    if (nav.permissions?.query) {
+      const status = await nav.permissions.query({ name: 'microphone' })
+      if (status.state === 'granted') {
+        return window.self !== window.top
+          ? '브라우저에는 마이크가 허용되어 있는데, 지금 보고 계신 미리보기 화면(임베드)에서는 마이크 접근이 막혀 있어요. 이 페이지를 새 탭에서 열거나 컴퓨터에서 직접 실행하면 정상적으로 인식돼요.'
+          : '브라우저에는 마이크가 허용되어 있는데 음성 인식이 거부됐어요. 페이지를 새로고침한 뒤 다시 시도해주세요.'
+      }
+    }
+  } catch {
+    // Permissions API 미지원 브라우저는 아래 기본 안내로 넘어간다
+  }
+  return '마이크 권한이 꺼져 있어요. 브라우저 설정에서 마이크 사용을 허용해주세요.'
+}
+
+async function micErrorMessage(error: string): Promise<string> {
   switch (error) {
     case 'not-allowed':
     case 'permission-denied':
     case 'service-not-allowed':
-      return '마이크 권한이 꺼져 있어요. 브라우저 설정에서 마이크 사용을 허용해주세요.'
+      return describePermissionBlocked()
     case 'audio-capture':
       return '마이크를 찾을 수 없어요. 마이크가 연결되어 있는지 확인해주세요.'
     case 'network':
@@ -83,11 +102,12 @@ export function useSpeech() {
     rec.onend = () => setListening(false)
     rec.onerror = (e) => {
       setListening(false)
-      const msg = micErrorMessage(e.error)
-      if (msg) {
+      const errorCode = e.error
+      void micErrorMessage(errorCode).then((msg) => {
+        if (!msg) return
         setMicError(msg)
         speak(msg)
-      }
+      })
     }
     recognitionRef.current = rec
     setSupported(true)
