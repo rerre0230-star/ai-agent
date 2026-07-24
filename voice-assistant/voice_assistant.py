@@ -22,9 +22,19 @@ EVENTS_DIR = BASE_DIR / "events"
 
 try:
     import pyttsx3
-    _tts_engine = pyttsx3.init()
 except Exception:
+    pyttsx3 = None
+
+if pyttsx3 is not None:
+    try:
+        _tts_engine = pyttsx3.init()
+        _tts_unavailable_reason = None
+    except Exception as e:
+        _tts_engine = None
+        _tts_unavailable_reason = f"pyttsx3는 설치돼 있지만 음성 엔진을 초기화하지 못했어요({e}). Linux라면 espeak/espeak-ng 설치가 필요할 수 있어요: sudo apt install espeak-ng"
+else:
     _tts_engine = None
+    _tts_unavailable_reason = "pyttsx3가 설치되어 있지 않아 음성 출력은 생략돼요: pip install pyttsx3"
 
 try:
     import speech_recognition as sr
@@ -40,7 +50,7 @@ def speak(text: str) -> None:
     print(f"🤖 {text}")
     if _tts_engine is None:
         if not _tts_warned:
-            print("   (pyttsx3가 설치되어 있지 않아 음성 출력은 생략돼요: pip install pyttsx3)")
+            print(f"   ({_tts_unavailable_reason})")
             _tts_warned = True
         return
     try:
