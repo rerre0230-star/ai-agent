@@ -12,6 +12,11 @@ dist
 dist-ssr
 *.local
 
+# voice-assistant 런타임 생성 파일
+voice-assistant/events/
+__pycache__/
+*.pyc
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
