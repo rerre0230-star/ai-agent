@@ -61,4 +61,5 @@ export interface CalendarEvent {
 export interface ToastMessage {
   id: string
   text: string
+  level: 'info' | 'warning'
 }

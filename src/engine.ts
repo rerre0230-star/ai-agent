@@ -183,12 +183,20 @@ export function useConversationEngine(onSystemSpeak: (text: string) => void) {
     setEvents((prev) => [{ ...e, id: nextId(), timestamp: Date.now() }, ...prev])
   }, [])
 
-  const pushToast = useCallback((text: string) => {
+  const pushToast = useCallback((text: string, level: ToastMessage['level'] = 'info') => {
     const id = nextId()
-    setToasts((prev) => [...prev, { id, text }])
+    setToasts((prev) => [...prev, { id, text, level }])
     window.setTimeout(() => {
       setToasts((prev) => prev.filter((t) => t.id !== id))
     }, 2800)
+  }, [])
+
+  // 홈 버튼 등으로 안전하게 대기 화면으로 복귀: 진행 중인 지연 응답을 모두 무효화한다
+  const resetToIdle = useCallback(() => {
+    connectGen.current++
+    searchGen.current++
+    clearMedTimers()
+    setState((prev) => (prev.kind === 'idle' ? prev : { kind: 'idle' }))
   }, [])
 
   const startExternalConnect = useCallback((intent: IntentType, hospitalName: string | null, label: string) => {
@@ -514,5 +522,5 @@ export function useConversationEngine(onSystemSpeak: (text: string) => void) {
 
   const inputDisabled = state.kind === 'session_ended'
 
-  return { state, messages, alerts, hospitals, events, toasts, inputDisabled, handleAction, startMedicationDemo, dismissToast }
+  return { state, messages, alerts, hospitals, events, toasts, inputDisabled, handleAction, startMedicationDemo, dismissToast, pushToast, resetToIdle }
 }

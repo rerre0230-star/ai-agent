@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import ConversationScreen from './components/ConversationScreen'
 import GuardianDashboard from './components/GuardianDashboard'
 import CalendarScreen from './components/CalendarScreen'
@@ -18,7 +18,7 @@ const TABS: { key: Tab; icon: string; label: string }[] = [
 function App() {
   const [tab, setTab] = useState<Tab>('user')
   const speech = useSpeech()
-  const { state, messages, alerts, hospitals, events, toasts, inputDisabled, handleAction, dismissToast } = useConversationEngine(speech.speak)
+  const { state, messages, alerts, hospitals, events, toasts, inputDisabled, handleAction, dismissToast, pushToast, resetToIdle } = useConversationEngine(speech.speak)
 
   const handleMicToggle = () => {
     if (speech.listening) {
@@ -28,11 +28,26 @@ function App() {
     speech.startListening((text) => handleAction(text))
   }
 
+  useEffect(() => {
+    if (speech.micError) {
+      pushToast(speech.micError, 'warning')
+      speech.clearMicError()
+    }
+  }, [speech.micError, speech.clearMicError, pushToast])
+
+  const handleHome = () => {
+    setTab('user')
+    resetToIdle()
+  }
+
   const unresolvedAlerts = alerts.filter((a) => a.level !== 'info').length
 
   return (
     <div className="phone-frame">
       <div className="phone-header">
+        <button type="button" className="home-btn" onClick={handleHome} aria-label="홈으로">
+          <span aria-hidden="true">🏠</span>
+        </button>
         <span className="app-name">Bridge AI</span>
         <button
           type="button"
