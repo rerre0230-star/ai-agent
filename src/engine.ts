@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { initialRegisteredHospitals, medicationLabelByTime, mockWebSearchHospital } from './mockData'
-import type { CalendarEvent, ChatMessage, GuardianAlert, IntentType, RegisteredHospital, ScreenState } from './types'
+import type { CalendarEvent, ChatMessage, GuardianAlert, IntentType, RegisteredHospital, ScreenState, ToastMessage } from './types'
 
 // 데모 편의를 위해 30분 재알림 간격을 압축한 값 (실제 서비스에서는 30분)
 const DEMO_TIMEOUT_MS = 12000
@@ -49,12 +49,16 @@ export function useConversationEngine(onSystemSpeak: (text: string) => void) {
   const [alerts, setAlerts] = useState<GuardianAlert[]>([])
   const [hospitals, setHospitals] = useState<RegisteredHospital[]>(initialRegisteredHospitals)
   const [events, setEvents] = useState<CalendarEvent[]>([])
+  const [toasts, setToasts] = useState<ToastMessage[]>([])
 
   const timer1 = useRef<number | null>(null)
   const timer2 = useRef<number | null>(null)
   const timer3 = useRef<number | null>(null)
   const connectFailCount = useRef(0)
   const pendingRequest = useRef<{ intent: IntentType; hospitalName: string | null; label: string } | null>(null)
+  // 취소 후에도 살아있는 지연 타이머가 화면을 덮어쓰지 않도록 요청마다 세대를 구분한다
+  const connectGen = useRef(0)
+  const searchGen = useRef(0)
 
   const clearMedTimers = () => {
     if (timer1.current) window.clearTimeout(timer1.current)
@@ -77,11 +81,21 @@ export function useConversationEngine(onSystemSpeak: (text: string) => void) {
     setEvents((prev) => [{ ...e, id: nextId(), timestamp: Date.now() }, ...prev])
   }, [])
 
+  const pushToast = useCallback((text: string) => {
+    const id = nextId()
+    setToasts((prev) => [...prev, { id, text }])
+    window.setTimeout(() => {
+      setToasts((prev) => prev.filter((t) => t.id !== id))
+    }, 2800)
+  }, [])
+
   const startExternalConnect = useCallback((intent: IntentType, hospitalName: string | null, label: string) => {
     pendingRequest.current = { intent, hospitalName, label }
+    const myGen = ++connectGen.current
     setState({ kind: 'external_connect', label, onCancelReturnsTo: 'idle' })
     addMessage('system', label)
     window.setTimeout(() => {
+      if (connectGen.current !== myGen) return
       const success = Math.random() < 0.78
       if (success) {
         connectFailCount.current = 0
@@ -98,6 +112,7 @@ export function useConversationEngine(onSystemSpeak: (text: string) => void) {
           addMessage('system', `✅ 예약이 확정됐어요. ${hospitalName}, ${dateLabel}. 보호자에게도 알려드렸어요.`)
           addAlert('info', '예약 확정', `${hospitalName} · ${dateLabel}`)
           addEvent({ type: 'hospital', title: `${hospitalName} 진료 예약`, whenLabel: dateLabel, status: 'scheduled' })
+          pushToast('보호자에게 예약 확정을 알렸어요')
         } else {
           setState({
             kind: 'confirmed',
@@ -108,6 +123,7 @@ export function useConversationEngine(onSystemSpeak: (text: string) => void) {
           addMessage('system', '✅ 두리발 배차가 확정됐어요. 약 7분 후 도착합니다. 보호자에게도 알려드렸어요.')
           addAlert('info', '두리발 배차 완료', '약 7분 후 도착 예정')
           addEvent({ type: 'transport', title: '두리발 이용', whenLabel: nowLabel(), detail: '약 7분 후 도착 예정', status: 'scheduled' })
+          pushToast('보호자에게 두리발 배차를 알렸어요')
         }
       } else {
         connectFailCount.current += 1
@@ -119,12 +135,14 @@ export function useConversationEngine(onSystemSpeak: (text: string) => void) {
         }
       }
     }, 1800)
-  }, [addAlert, addEvent, addMessage, hospitals])
+  }, [addAlert, addEvent, addMessage, hospitals, pushToast])
 
   const startWebSearch = useCallback((hospitalName: string) => {
+    const myGen = ++searchGen.current
     setState({ kind: 'web_search', hospitalName })
     addMessage('system', `🔍 ${hospitalName} 찾아볼게요`)
     window.setTimeout(() => {
+      if (searchGen.current !== myGen) return
       const result = mockWebSearchHospital(hospitalName)
       if (result) {
         setState({ kind: 'search_confirm', hospitalName, phone: result.phone })
@@ -165,10 +183,11 @@ export function useConversationEngine(onSystemSpeak: (text: string) => void) {
         addMessage('system', '🔕 대화를 종료할게요. 2회 연속 응답이 없어 보호자에게 알렸어요.')
         addAlert('emergency', '미복약 · 2회 연속 무응답', `${label} 관련 응답이 없어 보호자 확인이 필요해요`)
         addEvent({ type: 'medication', title: `${label} 미복용`, whenLabel: nowLabel(), status: 'missed' })
+        pushToast('보호자에게 미복약 상황을 알렸어요')
         timer3.current = window.setTimeout(() => setState({ kind: 'idle' }), AUTO_RETURN_MS)
       }, DEMO_TIMEOUT_MS)
     }, DEMO_TIMEOUT_MS)
-  }, [addAlert, addEvent, addMessage])
+  }, [addAlert, addEvent, addMessage, pushToast])
 
   const processIdleIntent = useCallback((text: string) => {
     const intent = parseIntent(text)
@@ -194,6 +213,11 @@ export function useConversationEngine(onSystemSpeak: (text: string) => void) {
 
       case 'intent_confirm': {
         const s = state
+        if (isCancel(text)) {
+          setState({ kind: 'idle' })
+          addMessage('system', '취소했어요')
+          break
+        }
         if (s.options.includes('다른 병원') && text === '다른 병원') {
           setState({ kind: 'intent_confirm', intent: 'hospital', prompt: '병원 이름을 말씀해 주세요', options: [], retried: s.retried })
           addMessage('system', '병원 이름을 말씀해 주세요')
@@ -219,6 +243,7 @@ export function useConversationEngine(onSystemSpeak: (text: string) => void) {
           setState({ kind: 'failed', reason: '요청을 확인하기 어려워요', retryAction: null })
           addMessage('system', '요청을 확인하기 어려워요. 보호자에게 확인을 요청드릴게요.')
           addAlert('warning', '사용자 확인 필요', '두 번 재질문에도 요청을 이해하지 못했어요')
+          pushToast('보호자에게 확인을 요청했어요')
           window.setTimeout(() => setState({ kind: 'idle' }), AUTO_RETURN_MS)
         }
         break
@@ -226,7 +251,10 @@ export function useConversationEngine(onSystemSpeak: (text: string) => void) {
 
       case 'search_confirm': {
         const s = state
-        if (isYes(text)) {
+        if (isCancel(text)) {
+          setState({ kind: 'idle' })
+          addMessage('system', '취소했어요')
+        } else if (isYes(text)) {
           startExternalConnect('hospital', s.hospitalName, `${s.hospitalName} 전화 연결해드릴게요`)
         } else if (isNo(text)) {
           setState({ kind: 'intent_confirm', intent: 'hospital', prompt: '병원 이름을 다시 말씀해 주세요', options: [], retried: true })
@@ -237,8 +265,18 @@ export function useConversationEngine(onSystemSpeak: (text: string) => void) {
         break
       }
 
+      case 'web_search': {
+        if (isCancel(text)) {
+          searchGen.current++ // 진행 중이던 검색 결과가 뒤늦게 화면을 덮어쓰지 않도록 무효화
+          setState({ kind: 'idle' })
+          addMessage('system', '검색을 취소했어요')
+        }
+        break
+      }
+
       case 'external_connect': {
         if (isCancel(text)) {
+          connectGen.current++ // 지연된 연결 결과가 뒤늦게 화면을 덮어쓰지 않도록 무효화
           setState({ kind: 'idle' })
           addMessage('system', '연결을 취소했어요')
         }
@@ -251,6 +289,7 @@ export function useConversationEngine(onSystemSpeak: (text: string) => void) {
           if (isYes(text)) {
             setHospitals((prev) => [...prev, { name: s.offerSaveHospital as string, phone: '' }])
             addMessage('system', '다음부터 바로 연결해드릴게요. 등록했어요.')
+            pushToast('병원을 등록했어요')
             setState({ kind: 'idle' })
             return
           }
@@ -279,6 +318,7 @@ export function useConversationEngine(onSystemSpeak: (text: string) => void) {
           if (/보호자|확인 요청/.test(text)) {
             addAlert('warning', '보호자 확인 요청', '병원 번호를 찾지 못해 보호자 확인이 필요해요')
             addMessage('system', '보호자에게 확인을 요청했어요')
+            pushToast('보호자에게 확인을 요청했어요')
             setState({ kind: 'idle' })
           } else {
             setState({ kind: 'intent_confirm', intent: 'hospital', prompt: '병원 이름을 다시 말씀해 주세요', options: [], retried: false })
@@ -300,6 +340,7 @@ export function useConversationEngine(onSystemSpeak: (text: string) => void) {
         } else if (/먹었|드셨/.test(text)) {
           addMessage('system', '잘하셨어요. 기록했어요')
           addEvent({ type: 'medication', title: `${s.label} 복용 완료`, whenLabel: nowLabel(), status: 'done' })
+          pushToast('일정에 복용 기록을 저장했어요')
         } else {
           addMessage('system', '기록했어요. 확인 감사해요')
           addEvent({ type: 'medication', title: `${s.label} 아직 미복용`, whenLabel: nowLabel(), status: 'skipped' })
@@ -308,13 +349,16 @@ export function useConversationEngine(onSystemSpeak: (text: string) => void) {
         break
       }
 
-      case 'web_search':
       case 'session_ended':
         break
     }
-  }, [addAlert, addEvent, addMessage, hospitals, processIdleIntent, routeHospitalIntent, startExternalConnect, startMedicationDemo, state])
+  }, [addAlert, addEvent, addMessage, hospitals, processIdleIntent, pushToast, routeHospitalIntent, startExternalConnect, startMedicationDemo, state])
+
+  const dismissToast = useCallback((id: string) => {
+    setToasts((prev) => prev.filter((t) => t.id !== id))
+  }, [])
 
   const inputDisabled = state.kind === 'session_ended'
 
-  return { state, messages, alerts, hospitals, events, inputDisabled, handleAction, startMedicationDemo }
+  return { state, messages, alerts, hospitals, events, toasts, inputDisabled, handleAction, startMedicationDemo, dismissToast }
 }

@@ -57,3 +57,8 @@ export interface CalendarEvent {
   status: CalendarEventStatus
   timestamp: number
 }
+
+export interface ToastMessage {
+  id: string
+  text: string
+}

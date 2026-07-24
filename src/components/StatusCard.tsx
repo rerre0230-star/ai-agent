@@ -18,56 +18,67 @@ function Buttons({ options, onAction }: { options: string[]; onAction: (t: strin
   )
 }
 
+function CancelLink({ onAction, label = '취소' }: { onAction: (t: string) => void; label?: string }) {
+  return (
+    <button type="button" className="cancel-link" onClick={() => onAction('취소')}>
+      {label}
+    </button>
+  )
+}
+
 export default function StatusCard({ state, onAction }: Props) {
   switch (state.kind) {
     case 'idle':
       return (
-        <div className="status-card idle">
-          <div className="status-icon pulse">🎙️</div>
+        <div className="status-card idle" role="status" aria-live="polite">
+          <div className="status-icon pulse" aria-hidden="true">🎙️</div>
           <p className="status-text">말씀주세요</p>
           <Buttons options={['병원 예약', '두리발 호출', '오늘 복약 확인']} onAction={onAction} />
         </div>
       )
     case 'intent_confirm':
       return (
-        <div className="status-card">
-          <div className="status-icon">💬</div>
+        <div className="status-card" role="status" aria-live="polite">
+          <div className="status-icon" aria-hidden="true">💬</div>
           <p className="status-text">{state.prompt}</p>
           {state.options.length === 0 && <p className="status-hint">아래 입력창에 말하거나 입력해 주세요</p>}
           <Buttons options={state.options} onAction={onAction} />
+          <CancelLink onAction={onAction} />
         </div>
       )
     case 'web_search':
       return (
-        <div className="status-card">
-          <div className="status-icon spin">🔍</div>
+        <div className="status-card" role="status" aria-live="polite">
+          <div className="status-icon spin" aria-hidden="true">🔍</div>
           <p className="status-text">{state.hospitalName} 찾아볼게요</p>
-          <p className="status-hint">검색 중...</p>
+          <p className="status-hint skeleton">검색 중...</p>
+          <CancelLink onAction={onAction} />
         </div>
       )
     case 'search_confirm':
       return (
-        <div className="status-card">
-          <div className="status-icon">🔍</div>
+        <div className="status-card" role="status" aria-live="polite">
+          <div className="status-icon" aria-hidden="true">🔍</div>
           <p className="status-text">
             {state.hospitalName}, 대표번호 {state.phone} 맞으실까요?
           </p>
           <Buttons options={['네, 연결해줘', '아니요']} onAction={onAction} />
+          <CancelLink onAction={onAction} />
         </div>
       )
     case 'external_connect':
       return (
-        <div className="status-card">
-          <div className="status-icon pulse">📞</div>
+        <div className="status-card" role="status" aria-live="polite">
+          <div className="status-icon pulse" aria-hidden="true">📞</div>
           <p className="status-text">{state.label}</p>
-          <p className="status-hint">연결 중...</p>
+          <p className="status-hint skeleton">연결 중...</p>
           <Buttons options={['취소']} onAction={onAction} />
         </div>
       )
     case 'confirmed':
       return (
-        <div className="status-card success">
-          <div className="status-icon">✅</div>
+        <div className="status-card success" role="status" aria-live="polite">
+          <div className="status-icon" aria-hidden="true">✅</div>
           <p className="status-text">{state.title}</p>
           {state.lines.map((l) => (
             <p key={l} className="status-line">{l}</p>
@@ -83,8 +94,8 @@ export default function StatusCard({ state, onAction }: Props) {
       )
     case 'failed':
       return (
-        <div className="status-card warning">
-          <div className="status-icon">⚠️</div>
+        <div className="status-card warning" role="status" aria-live="assertive">
+          <div className="status-icon" aria-hidden="true">⚠️</div>
           <p className="status-text">연결이 안 됐어요</p>
           <p className="status-hint">사유: {state.reason}</p>
           {state.retryAction === 'connect' && (
@@ -97,8 +108,8 @@ export default function StatusCard({ state, onAction }: Props) {
       )
     case 'medication_check':
       return (
-        <div className="status-card">
-          <div className="status-icon">🔔</div>
+        <div className="status-card" role="status" aria-live="assertive">
+          <div className="status-icon" aria-hidden="true">🔔</div>
           <p className="status-text">
             {state.round === 1 ? `${state.label} 드셨나요?` : `(재알림) ${state.label} 아직 안 드셨어요?`}
           </p>
@@ -107,8 +118,8 @@ export default function StatusCard({ state, onAction }: Props) {
       )
     case 'session_ended':
       return (
-        <div className="status-card warning">
-          <div className="status-icon">🔕</div>
+        <div className="status-card warning" role="status" aria-live="assertive">
+          <div className="status-icon" aria-hidden="true">🔕</div>
           <p className="status-text">대화를 종료할게요</p>
           <p className="status-hint">{state.reason}</p>
           <p className="status-hint">잠시 후 대기 화면으로 돌아갑니다</p>

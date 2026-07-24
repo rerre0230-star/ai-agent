@@ -24,11 +24,15 @@ export default function InputBar({ disabled, listening, micSupported, onSend, on
         className={`mic-btn ${listening ? 'listening' : ''}`}
         onClick={onMicToggle}
         disabled={disabled || !micSupported}
+        aria-label={listening ? '음성 듣기 중지' : '음성으로 말하기'}
+        aria-pressed={listening}
         title={micSupported ? '음성으로 말하기' : '이 브라우저는 음성 인식을 지원하지 않아요'}
       >
-        🎤
+        <span aria-hidden="true">🎤</span>
       </button>
+      <label htmlFor="chat-input" className="visually-hidden">메시지 입력</label>
       <input
+        id="chat-input"
         type="text"
         placeholder={disabled ? '대화가 종료됐어요' : '메시지를 입력하세요...'}
         value={text}
@@ -36,8 +40,8 @@ export default function InputBar({ disabled, listening, micSupported, onSend, on
         onChange={(e) => setText(e.target.value)}
         onKeyDown={(e) => e.key === 'Enter' && submit()}
       />
-      <button type="button" className="send-btn" onClick={submit} disabled={disabled}>
-        ➤
+      <button type="button" className="send-btn" onClick={submit} disabled={disabled} aria-label="메시지 보내기">
+        <span aria-hidden="true">➤</span>
       </button>
     </div>
   )

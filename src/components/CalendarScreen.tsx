@@ -17,7 +17,7 @@ const statusLabel: Record<CalendarEventStatus, string> = {
 function EventItem({ e }: { e: CalendarEvent }) {
   return (
     <li className={`cal-item ${e.status}`}>
-      <span className="cal-icon">{typeIcon[e.type]}</span>
+      <span className="cal-icon" aria-hidden="true">{typeIcon[e.type]}</span>
       <div className="cal-body">
         <div className="cal-title-row">
           <strong>{e.title}</strong>

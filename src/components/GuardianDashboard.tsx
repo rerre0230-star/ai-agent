@@ -21,7 +21,7 @@ export default function GuardianDashboard({ alerts, hospitals }: { alerts: Guard
       <ul className="alert-list">
         {alerts.map((a) => (
           <li key={a.id} className={`alert-item ${a.level}`}>
-            <span className="alert-icon">{levelIcon[a.level]}</span>
+            <span className="alert-icon" aria-hidden="true">{levelIcon[a.level]}</span>
             <div className="alert-body">
               <div className="alert-title-row">
                 <strong>{a.title}</strong>
