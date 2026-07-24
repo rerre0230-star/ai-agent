@@ -25,7 +25,7 @@ export default function StatusCard({ state, onAction }: Props) {
         <div className="status-card idle">
           <div className="status-icon pulse">🎙️</div>
           <p className="status-text">말씀주세요</p>
-          <Buttons options={['병원 예약', '이동수단 요청', '오늘 복약 확인']} onAction={onAction} />
+          <Buttons options={['병원 예약', '두리발 호출', '오늘 복약 확인']} onAction={onAction} />
         </div>
       )
     case 'intent_confirm':

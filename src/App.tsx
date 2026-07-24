@@ -1,16 +1,17 @@
 import { useState } from 'react'
 import ConversationScreen from './components/ConversationScreen'
 import GuardianDashboard from './components/GuardianDashboard'
+import CalendarScreen from './components/CalendarScreen'
 import { useConversationEngine } from './engine'
 import { useSpeech } from './useSpeech'
 import './App.css'
 
-type Tab = 'user' | 'guardian'
+type Tab = 'user' | 'calendar' | 'guardian'
 
 function App() {
   const [tab, setTab] = useState<Tab>('user')
   const speech = useSpeech()
-  const { state, messages, alerts, hospitals, inputDisabled, handleAction } = useConversationEngine(speech.speak)
+  const { state, messages, alerts, hospitals, events, inputDisabled, handleAction } = useConversationEngine(speech.speak)
 
   const handleMicToggle = () => {
     if (speech.listening) {
@@ -37,7 +38,7 @@ function App() {
       </div>
 
       <div className="phone-body">
-        {tab === 'user' ? (
+        {tab === 'user' && (
           <ConversationScreen
             state={state}
             messages={messages}
@@ -47,14 +48,17 @@ function App() {
             onAction={handleAction}
             onMicToggle={handleMicToggle}
           />
-        ) : (
-          <GuardianDashboard alerts={alerts} hospitals={hospitals} />
         )}
+        {tab === 'calendar' && <CalendarScreen events={events} />}
+        {tab === 'guardian' && <GuardianDashboard alerts={alerts} hospitals={hospitals} />}
       </div>
 
       <nav className="tab-bar">
         <button type="button" className={tab === 'user' ? 'active' : ''} onClick={() => setTab('user')}>
           🗣️<span>대화</span>
+        </button>
+        <button type="button" className={tab === 'calendar' ? 'active' : ''} onClick={() => setTab('calendar')}>
+          📅<span>일정</span>
         </button>
         <button type="button" className={tab === 'guardian' ? 'active' : ''} onClick={() => setTab('guardian')}>
           👪<span>보호자 알림</span>

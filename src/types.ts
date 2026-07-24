@@ -44,3 +44,16 @@ export interface RegisteredHospital {
   name: string
   phone: string
 }
+
+export type CalendarEventType = 'hospital' | 'transport' | 'medication'
+export type CalendarEventStatus = 'scheduled' | 'done' | 'missed' | 'skipped' | 'stopped'
+
+export interface CalendarEvent {
+  id: string
+  type: CalendarEventType
+  title: string
+  whenLabel: string
+  detail?: string
+  status: CalendarEventStatus
+  timestamp: number
+}
